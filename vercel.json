@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/play/:type/:slug", "destination": "/play.html" },
+    { "source": "/(home|search|favorites|history|profile)", "destination": "/index.html" }
+  ]
+}
