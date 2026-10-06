@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Putar — ZerozxStream</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="nav scrolled">
+  <a class="logo" href="/home"><span class="z">Z</span><span class="rest">erozx</span><span class="dot">Stream</span></a>
+  <div class="nav-links"><a href="/home">← Kembali ke beranda</a></div>
+</nav>
+
+<main class="player-wrap" id="root">
+  <div class="player"><div class="player-empty"><div><div class="spinner"></div>Memuat...</div></div></div>
+</main>
+
+<script>
+/* Sumber pemutar legal/berlisensi milikmu. Template: {type} = movie|tv, {id} = ID TMDB.
+   Contoh: "https://player.domainmu.com/{type}/{id}". Kosong = tampilkan trailer resmi. */
+const PLAYER_TEMPLATE = "";
+
+const [, , t, slug] = location.pathname.split("/");
+const type = t === "tv" ? "tv" : "film";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const get = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+(async () => {
+  const root = document.getElementById("root");
+  try {
+    const r = await fetch(`/api/movies?action=detail&slug=${encodeURIComponent(slug)}&type=${type === "tv" ? "tv" : "movie"}`);
+    const m = (await r.json()).results;
+    if (!m || !m.title) throw new Error();
+    document.title = `${m.title} — ZerozxStream`;
+
+    // simpan ke riwayat (dibaca oleh tab Riwayat di app.js)
+    const hist = get("zerozx_history", []).filter(x => x.slug !== m.slug);
+    hist.unshift({ ...m, watchedAt: Date.now() });
+    set("zerozx_history", hist.slice(0, 100));
+
+    let src = "";
+    if (PLAYER_TEMPLATE) src = PLAYER_TEMPLATE.replace("{type}", type === "tv" ? "tv" : "movie").replace("{id}", m.slug);
+    else if (m.trailer) src = `https://www.youtube.com/embed/${m.trailer}?rel=0`;
+
+    const isFav = get("zerozx_favorites", []).some(x => x.slug === m.slug);
+    root.innerHTML = `
+      <div class="player" style="background-image:url('${esc(m.backdrop)}')">
+        ${src ? `<iframe src="${esc(src)}" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>`
+              : `<div class="player-empty"><div><h3 style="color:var(--text);font-family:var(--display)">Pemutar belum diatur</h3><p>Isi PLAYER_TEMPLATE di play.html untuk menayangkan film penuh.</p></div></div>`}
+      </div>
+      <div class="info">
+        <img src="${esc(m.poster)}" alt="${esc(m.title)}">
+        <div>
+          <h1>${esc(m.title)}</h1>
+          <div class="modal-meta">
+            ${m.rating ? `<span class="score">★ ${Number(m.rating).toFixed(1)}</span>` : ""}
+            <span class="pill">HD</span><span class="pill">${esc(m.year)}</span>
+          </div>
+          <div class="modal-genres">${m.genres.map(g => `<span>${esc(g)}</span>`).join("")}</div>
+          <p class="modal-desc">${esc(m.overview || "Deskripsi belum tersedia.")}</p>
+          <div class="modal-actions"><button class="btn btn-ghost" id="fav">${isFav ? "❤ Tersimpan" : "♡ Favoritkan"}</button></div>
+        </div>
+      </div>`;
+
+    document.getElementById("fav").onclick = e => {
+      let f = get("zerozx_favorites", []);
+      const has = f.some(x => x.slug === m.slug);
+      f = has ? f.filter(x => x.slug !== m.slug) : [{ ...m, savedAt: Date.now() }, ...f];
+      set("zerozx_favorites", f);
+      e.target.textContent = has ? "♡ Favoritkan" : "❤ Tersimpan";
+    };
+  } catch {
+    root.innerHTML = `<div class="state"><h3>Judul tidak ditemukan</h3><p>Kembali ke beranda dan pilih judul lain.</p></div>`;
+  }
+})();
+</script>
+</body>
+</html>
